@@ -1,0 +1,6 @@
+@FinLedger.Api_HostAddress = http://localhost:5283
+
+GET {{FinLedger.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
