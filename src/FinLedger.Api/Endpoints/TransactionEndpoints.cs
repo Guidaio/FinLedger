@@ -1,4 +1,5 @@
 using FinLedger.Api.Contracts;
+using FinLedger.Api.ProblemDetails;
 using FinLedger.Domain.Entities;
 using FinLedger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -9,11 +10,24 @@ public static class TransactionEndpoints
 {
     public static void MapTransactionEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/transactions").WithTags("Transactions");
+        var group = app.MapGroup("/transactions")
+            .WithTags("Transactions")
+            .WithOpenApi();
 
         group.MapPost("/", CreateTransaction)
             .WithName("CreateTransaction")
-            .WithOpenApi()
+            .WithOpenApi(operation =>
+            {
+                operation.Summary = "Create transaction (idempotent)";
+                operation.Parameters.Add(new Microsoft.OpenApi.Models.OpenApiParameter
+                {
+                    Name = "Idempotency-Key",
+                    In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+                    Required = false,
+                    Description = "Unique key for idempotency (header takes precedence over body). Same key returns existing transaction (200) instead of creating duplicate."
+                });
+                return operation;
+            })
             .Produces<TransactionResponse>(StatusCodes.Status201Created)
             .Produces<TransactionResponse>(StatusCodes.Status200OK) // idempotent replay
             .Produces(StatusCodes.Status400BadRequest)
@@ -31,7 +45,7 @@ public static class TransactionEndpoints
             ?? request.IdempotencyKey;
 
         if (string.IsNullOrWhiteSpace(idempotencyKey))
-            return Results.BadRequest(new { error = "Idempotency-Key header or request.IdempotencyKey is required" });
+            return ProblemDetailsExtensions.BadRequest("Idempotency-Key header or request.IdempotencyKey is required");
 
         idempotencyKey = idempotencyKey.Trim();
 
@@ -45,21 +59,18 @@ public static class TransactionEndpoints
 
         // Validate entries
         if (request.Entries is null || request.Entries.Count < 2)
-            return Results.BadRequest(new { error = "At least 2 entries are required" });
+            return ProblemDetailsExtensions.BadRequest("At least 2 entries are required");
 
         var totalDebits = request.Entries.Where(e => e.Side == EntrySide.Debit).Sum(e => e.Amount);
         var totalCredits = request.Entries.Where(e => e.Side == EntrySide.Credit).Sum(e => e.Amount);
 
         if (totalDebits != totalCredits)
-            return Results.UnprocessableEntity(new
-            {
-                error = "Entries must balance: sum of debits must equal sum of credits",
-                totalDebits,
-                totalCredits
-            });
+            return ProblemDetailsExtensions.UnprocessableEntity(
+                "Entries must balance: sum of debits must equal sum of credits",
+                extensions: new Dictionary<string, object?> { ["totalDebits"] = totalDebits, ["totalCredits"] = totalCredits });
 
         if (request.Entries.Any(e => e.Amount <= 0))
-            return Results.BadRequest(new { error = "Amount must be positive" });
+            return ProblemDetailsExtensions.BadRequest("Amount must be positive");
 
         // Validate all accounts exist
         var accountIds = request.Entries.Select(e => e.AccountId).Distinct().ToList();
@@ -70,7 +81,9 @@ public static class TransactionEndpoints
 
         var missingIds = accountIds.Except(existingAccounts).ToList();
         if (missingIds.Any())
-            return Results.BadRequest(new { error = "One or more accounts not found", accountIds = missingIds });
+            return ProblemDetailsExtensions.BadRequest("One or more accounts not found",
+                extensions: new Dictionary<string, object?> { ["accountIds"] = missingIds });
+
 
         var now = DateTime.UtcNow;
         var transaction = new Transaction
@@ -97,7 +110,7 @@ public static class TransactionEndpoints
         db.Transactions.Add(transaction);
         await db.SaveChangesAsync(ct);
 
-        return Results.Created($"/transactions/{transaction.Id}", ToResponse(transaction));
+        return Results.Created($"/api/v1/transactions/{transaction.Id}", ToResponse(transaction));
     }
 
     private static TransactionResponse ToResponse(Transaction t)

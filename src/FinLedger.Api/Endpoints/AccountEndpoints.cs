@@ -1,4 +1,5 @@
 using FinLedger.Api.Contracts;
+using FinLedger.Api.ProblemDetails;
 using FinLedger.Domain.Entities;
 using FinLedger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,9 @@ public static class AccountEndpoints
 {
     public static void MapAccountEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/accounts").WithTags("Accounts");
+        var group = app.MapGroup("/accounts")
+            .WithTags("Accounts")
+            .WithOpenApi();
 
         group.MapPost("/", CreateAccount)
             .WithName("CreateAccount")
@@ -31,11 +34,11 @@ public static class AccountEndpoints
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Name) || string.IsNullOrWhiteSpace(request.Code))
-            return Results.BadRequest(new { error = "Name and Code are required" });
+            return ProblemDetailsExtensions.BadRequest("Name and Code are required");
 
         var exists = await db.Accounts.AnyAsync(a => a.Code == request.Code, ct);
         if (exists)
-            return Results.Conflict(new { error = $"Account with code '{request.Code}' already exists" });
+            return ProblemDetailsExtensions.Conflict($"Account with code '{request.Code}' already exists");
 
         var account = new Account
         {
@@ -49,7 +52,7 @@ public static class AccountEndpoints
         db.Accounts.Add(account);
         await db.SaveChangesAsync(ct);
 
-        return Results.Created($"/accounts/{account.Id}", new AccountResponse(
+        return Results.Created($"/api/v1/accounts/{account.Id}", new AccountResponse(
             account.Id,
             account.Name,
             account.Code,
@@ -64,7 +67,7 @@ public static class AccountEndpoints
     {
         var account = await db.Accounts.FindAsync([id], ct);
         if (account is null)
-            return Results.NotFound(new { error = "Account not found" });
+            return ProblemDetailsExtensions.NotFound("Account not found");
 
         var entries = await db.Entries
             .Where(e => e.AccountId == id)
