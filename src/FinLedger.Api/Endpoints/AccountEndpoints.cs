@@ -1,6 +1,7 @@
 using FinLedger.Api.Contracts;
 using FinLedger.Api.ProblemDetails;
 using FinLedger.Domain.Entities;
+using FinLedger.Domain.Services;
 using FinLedger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -76,12 +77,7 @@ public static class AccountEndpoints
 
         var totalDebits = entries.Where(e => e.Side == EntrySide.Debit).Sum(e => e.Amount);
         var totalCredits = entries.Where(e => e.Side == EntrySide.Credit).Sum(e => e.Amount);
-
-        // Asset and Expense: debit increases, credit decreases
-        // Liability, Equity, Revenue: credit increases, debit decreases
-        var balance = account.Type is AccountType.Asset or AccountType.Expense
-            ? totalDebits - totalCredits
-            : totalCredits - totalDebits;
+        var balance = BalanceCalculator.Calculate(account.Type, totalDebits, totalCredits);
 
         return Results.Ok(new BalanceResponse(account.Id, account.Code, balance));
     }

@@ -36,6 +36,12 @@ Base path: `/api/v1`
 | GET | /accounts/{id}/balance | Get account balance |
 | POST | /transactions | Create transaction (idempotent, use `Idempotency-Key` header) |
 
+## Running tests
+
+```bash
+dotnet test
+```
+
 ## Status
 
 In development. See `portfolio-notes.md` for the roadmap and execution history.
