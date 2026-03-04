@@ -24,6 +24,18 @@ Microservice that maintains a **double-entry ledger** for financial transactions
 dotnet run --project src/FinLedger.Api
 ```
 
+Swagger UI: http://localhost:5283/swagger (when running in Development).
+
+## API (v1)
+
+Base path: `/api/v1`
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /accounts | Create account |
+| GET | /accounts/{id}/balance | Get account balance |
+| POST | /transactions | Create transaction (idempotent, use `Idempotency-Key` header) |
+
 ## Status
 
 In development. See `portfolio-notes.md` for the roadmap and execution history.
