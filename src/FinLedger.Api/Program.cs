@@ -1,3 +1,4 @@
+using FinLedger.Api.Endpoints;
 using FinLedger.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,5 +27,8 @@ if (app.Environment.IsDevelopment())
 app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
     .WithName("HealthCheck")
     .WithOpenApi();
+
+app.MapAccountEndpoints();
+app.MapTransactionEndpoints();
 
 app.Run();
